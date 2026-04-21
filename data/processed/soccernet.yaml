@@ -1,0 +1,10 @@
+path: C:\Users\edaha\football_cv\data\processed
+train: images/train
+val: images/val
+test: images/test
+names:
+  0: player
+  1: goalkeeper
+  2: referee
+  3: ball
+nc: 4
