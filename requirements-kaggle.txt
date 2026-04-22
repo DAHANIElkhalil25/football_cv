@@ -1,0 +1,8 @@
+ultralytics==8.4.40
+opencv-python-headless
+PyYAML
+tqdm
+Pillow
+scipy
+scikit-learn
+seaborn

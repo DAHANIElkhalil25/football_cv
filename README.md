@@ -56,3 +56,26 @@ Fine-tuning avec Roboflow fusionné:
 ```bash
 python scripts/run_finetune.py --soccernet_dir ./data/raw/soccernet --output_dir ./data/processed --use_roboflow --roboflow_dataset_dir ./data/raw/roboflow/my_project-1 --merged_output_dir ./data/processed_merged --model_size m --epochs 50 --imgsz 1280 --batch 8 --device cuda --sampling_step 3
 ```
+
+## Exécution Kaggle (recommandé pour GPU limité Colab)
+
+### 1) Redémarrer la session Kaggle (important)
+Après des conflits pip, redémarrez le kernel Kaggle avant toute nouvelle installation.
+
+### 2) Installer puis entraîner en une commande
+```bash
+%cd /kaggle/working/football_cv
+bash ./scripts/kaggle_train.sh
+```
+
+Le script:
+- installe `requirements-kaggle.txt` (set minimal stable),
+- corrige `data/processed/soccernet.yaml` pour les chemins Kaggle,
+- vérifie que `train` et `val` existent,
+- lance l'entraînement YOLO.
+
+### 3) Paramètres optionnels
+```bash
+%cd /kaggle/working/football_cv
+EPOCHS=40 IMGSZ=960 BATCH=16 DEVICE=0 MODEL=yolov8n.pt RUN_NAME=yolov8n_soccernet_kaggle bash ./scripts/kaggle_train.sh
+```
