@@ -1,4 +1,4 @@
-﻿"""
+"""
 Module : tracker.py
 But    : Tracking multi-objets via ByteTrack (intégré Ultralytics)
 Output : Liste de TrackedObject avec id, bbox, classe, position BEV
@@ -39,6 +39,7 @@ class ByteTrackerWrapper:
         device: str = "cpu",
         conf: float = 0.25,
         iou: float = 0.7,
+        imgsz: int = 1280,
         homography_matrix: Optional[np.ndarray] = None,
     ) -> None:
         """Initialise le tracker.
@@ -49,6 +50,7 @@ class ByteTrackerWrapper:
             device: Device d'inférence (`cpu`, `cuda`, `0`, etc.).
             conf: Seuil de confiance détection.
             iou: Seuil IoU NMS.
+            imgsz: Taille d'image pour l'inférence (doit correspondre à l'entraînement).
             homography_matrix: Matrice 3x3 pour projection BEV optionnelle.
         """
         self._configure_logging()
@@ -58,6 +60,7 @@ class ByteTrackerWrapper:
         self.device = device
         self.conf = conf
         self.iou = iou
+        self.imgsz = imgsz
         self.homography_matrix = homography_matrix
 
         if not self.model_path.exists():
@@ -117,6 +120,7 @@ class ByteTrackerWrapper:
                 tracker=str(self.bytetrack_cfg),
                 conf=self.conf,
                 iou=self.iou,
+                imgsz=self.imgsz,
                 device=self.device,
                 verbose=False,
             )
