@@ -69,12 +69,17 @@ class TeamColorKMeansClassifier:
 		frame_bgr: np.ndarray,
 		tracked_objects: List[Dict[str, object]],
 	) -> List[TeamAssignment]:
-		"""Affecte les objets trackés aux équipes selon la couleur."""
+		"""Affecte les objets trackés aux équipes selon la couleur.
+
+		Accepte les clés 'bbox_xyxy' ou 'bbox' pour compatibilité.
+		Filtre uniquement les joueurs (class_id == 0) par défaut.
+		"""
 		assignments: List[TeamAssignment] = []
 		for obj in tracked_objects:
-			bbox = obj.get("bbox_xyxy")
+			bbox = obj.get("bbox_xyxy") or obj.get("bbox")
 			track_id = int(obj.get("track_id", -1))
-			if bbox is None:
+			class_id = int(obj.get("class_id", 0))
+			if bbox is None or class_id != 0:
 				continue
 			patch = self.extract_jersey_patch(frame_bgr, tuple(bbox))
 			if patch.size == 0:
