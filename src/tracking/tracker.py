@@ -164,4 +164,62 @@ class ByteTrackerWrapper:
         return tracked
 
 
-__all__ = ["TrackedObject", "ByteTrackerWrapper"]
+def interpolate_missing_tracks(
+    all_tracks: List[Dict],
+    max_gap: int = 5,
+) -> List[Dict]:
+    """Interpole les détections manquantes pour chaque track_id.
+
+    Problème résolu : ByteTrack perd parfois un joueur pendant 1-3 frames
+    (occlusion, flou). Au lieu de créer un trou dans la trajectoire,
+    on interpole linéairement la bbox entre la dernière et la prochaine
+    détection connue. Cela augmente le recall sans modifier le tracker.
+
+    Args:
+        all_tracks: Liste [{frame_idx, frame_path, tracks: [...]}, ...].
+        max_gap: Gap maximum (en frames) à interpoler. Au-delà, on
+            considère que le joueur a vraiment disparu.
+
+    Returns:
+        all_tracks enrichi avec les tracks interpolés (marqués interpolated=True).
+    """
+    from collections import defaultdict
+
+    # Indexer toutes les apparitions par track_id
+    track_history: Dict[int, List[Tuple[int, Dict]]] = defaultdict(list)
+    for frame_i, ft in enumerate(all_tracks):
+        for t in ft["tracks"]:
+            track_history[t["track_id"]].append((frame_i, t))
+
+    # Pour chaque track_id, trouver les trous et interpoler
+    for tid, appearances in track_history.items():
+        appearances.sort(key=lambda x: x[0])
+
+        for i in range(len(appearances) - 1):
+            fi_start, t_start = appearances[i]
+            fi_end, t_end = appearances[i + 1]
+            gap = fi_end - fi_start - 1
+
+            if gap <= 0 or gap > max_gap:
+                continue
+
+            # Interpolation linéaire des bboxes
+            bbox_start = np.array(t_start["bbox"])
+            bbox_end = np.array(t_end["bbox"])
+
+            for g in range(1, gap + 1):
+                alpha = g / (gap + 1)
+                bbox_interp = (1 - alpha) * bbox_start + alpha * bbox_end
+                interp_track = {
+                    "track_id": tid,
+                    "bbox": bbox_interp.tolist(),
+                    "class_id": t_start["class_id"],
+                    "conf": min(t_start.get("conf", 0.5), t_end.get("conf", 0.5)) * 0.8,
+                    "interpolated": True,
+                }
+                all_tracks[fi_start + g]["tracks"].append(interp_track)
+
+    return all_tracks
+
+
+__all__ = ["TrackedObject", "ByteTrackerWrapper", "interpolate_missing_tracks"]

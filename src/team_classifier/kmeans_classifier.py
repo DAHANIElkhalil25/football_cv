@@ -181,5 +181,43 @@ class TeamColorKMeansClassifier:
 			)
 		return assignments
 
+	def build_temporal_voting(
+		self,
+		all_tracks: List[Dict],
+		frame_reader,
+	) -> Dict[int, int]:
+		"""Vote temporel : assigne chaque track_id à l'équipe la plus fréquente.
+
+		Problème résolu : sans vote temporel, un même joueur peut changer
+		d'équipe entre les frames (flickering) à cause du bruit sur la couleur.
+		Solution : on collecte TOUTES les prédictions pour chaque track_id
+		sur toute la séquence, puis on prend le vote majoritaire.
+
+		Args:
+			all_tracks: Liste complète [{frame_idx, frame_path, tracks}, ...].
+			frame_reader: Fonction de lecture (ex: cv2.imread).
+
+		Returns:
+			Dict {track_id: team_id} stable pour toute la séquence.
+		"""
+		from collections import Counter
+
+		votes: Dict[int, list] = {}
+		for ft in all_tracks:
+			frame = frame_reader(ft["frame_path"])
+			assignments = self.assign_tracks(frame, ft["tracks"])
+			for a in assignments:
+				if a.track_id not in votes:
+					votes[a.track_id] = []
+				votes[a.track_id].append(a.team_id)
+
+		# Vote majoritaire par track_id
+		stable_map: Dict[int, int] = {}
+		for tid, team_votes in votes.items():
+			counter = Counter(team_votes)
+			stable_map[tid] = counter.most_common(1)[0][0]
+
+		return stable_map
+
 
 __all__ = ["TeamAssignment", "TeamColorKMeansClassifier"]
