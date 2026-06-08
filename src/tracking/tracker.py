@@ -80,6 +80,14 @@ class ByteTrackerWrapper:
                 format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
             )
 
+    def set_homography(self, homography_matrix: Optional[np.ndarray]) -> None:
+        """Met à jour l'homographie courante (calibration dynamique par frame).
+
+        Permet de brancher `DynamicHomography` : à chaque frame on recalcule H
+        puis on l'injecte ici avant `update()` pour une projection BEV à jour.
+        """
+        self.homography_matrix = homography_matrix
+
     def _to_bev(self, x: float, y: float) -> Optional[Tuple[float, float]]:
         """Projette un point image vers le plan BEV via homographie.
 
@@ -185,13 +193,11 @@ def interpolate_missing_tracks(
     """
     from collections import defaultdict
 
-    # Indexer toutes les apparitions par track_id
     track_history: Dict[int, List[Tuple[int, Dict]]] = defaultdict(list)
     for frame_i, ft in enumerate(all_tracks):
         for t in ft["tracks"]:
             track_history[t["track_id"]].append((frame_i, t))
 
-    # Pour chaque track_id, trouver les trous et interpoler
     for tid, appearances in track_history.items():
         appearances.sort(key=lambda x: x[0])
 
@@ -203,7 +209,6 @@ def interpolate_missing_tracks(
             if gap <= 0 or gap > max_gap:
                 continue
 
-            # Interpolation linéaire des bboxes
             bbox_start = np.array(t_start["bbox"])
             bbox_end = np.array(t_end["bbox"])
 
@@ -222,4 +227,44 @@ def interpolate_missing_tracks(
     return all_tracks
 
 
-__all__ = ["TrackedObject", "ByteTrackerWrapper", "interpolate_missing_tracks"]
+def count_identity_switches(all_tracks: List[Dict]) -> Dict[str, int]:
+    """Compte une approximation des changements d'identité (ID switches).
+
+    Heuristique sans vérité terrain : pour chaque track_id, on mesure les sauts
+    spatiaux improbables (téléportation de la bbox entre deux frames consécutives),
+    signe qu'un ID a été réattribué à un autre joueur. Utile en micro-évaluation
+    qualitative du tracking sur broadcast quand le MOT GT n'est pas disponible.
+
+    Args:
+        all_tracks: Liste [{frame_idx, tracks:[{track_id, bbox|bbox_xyxy}]}].
+
+    Returns:
+        Dict avec total de sauts suspects et nombre de tracks concernés.
+    """
+    last_center: Dict[int, Tuple[float, float]] = {}
+    suspicious = 0
+    affected = set()
+    for ft in all_tracks:
+        for t in ft["tracks"]:
+            bbox = t.get("bbox_xyxy") or t.get("bbox")
+            if bbox is None:
+                continue
+            cx = (bbox[0] + bbox[2]) / 2.0
+            cy = (bbox[1] + bbox[3]) / 2.0
+            tid = int(t["track_id"])
+            if tid in last_center:
+                dx = cx - last_center[tid][0]
+                dy = cy - last_center[tid][1]
+                if (dx * dx + dy * dy) ** 0.5 > 250.0:
+                    suspicious += 1
+                    affected.add(tid)
+            last_center[tid] = (cx, cy)
+    return {"suspicious_switches": suspicious, "tracks_affected": len(affected)}
+
+
+__all__ = [
+    "TrackedObject",
+    "ByteTrackerWrapper",
+    "interpolate_missing_tracks",
+    "count_identity_switches",
+]
